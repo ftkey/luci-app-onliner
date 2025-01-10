@@ -7,6 +7,23 @@
 <%
 local util = require "luci.util"
 
+local function compare_ipv4(ip1, ip2)
+    local a1, a2, a3, a4 = ip1:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+    local b1, b2, b3, b4 = ip2:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+
+    if a1 and a2 and a3 and a4 and b1 and b2 and b3 and b4 then
+        a1, a2, a3, a4 = tonumber(a1), tonumber(a2), tonumber(a3), tonumber(a4)
+        b1, b2, b3, b4 = tonumber(b1), tonumber(b2), tonumber(b3), tonumber(b4)
+
+        if a1 ~= b1 then return a1 < b1 end
+        if a2 ~= b2 then return a2 < b2 end
+        if a3 ~= b3 then return a3 < b3 end
+        if a4 ~= b4 then return a4 < b4 end
+    end
+
+    return ip1 < ip2
+end
+
 local function online_data()
 	local rv = {}
 	local fd = util.execi('/usr/bin/awk \'BEGIN{while ((getline < "/tmp/dhcp.leases") > 0){a[$2]=$4;}while ((getline < "/proc/net/arp") > 0){if (!a[$4]){a[$4]="?";}if (match($3,"0x[26]")){"ping -q -c 1 "$1" &";if (b[$4]){b[$4]=b[$4]"/"$1;}else{b[$4]=$1;}c[$4]=$6;}}while (("ip -6 neighbor show | grep -v fe80" | getline) > 0){if (b[$5]) {"ping -q -c 1 "$1" &";b[$5]=b[$5]"/"$1;}}for (mac in b){print(a[mac],b[mac],mac,c[mac]);}}\' ')
@@ -24,7 +41,12 @@ local function online_data()
 			}
 		end
 	end
-	return rv
+
+    table.sort(rv, function(a, b)
+    		return compare_ipv4(a.ipaddr, b.ipaddr)
+    end)
+	
+    return rv
 end
 
 if luci.http.formvalue("status") == "1" then
