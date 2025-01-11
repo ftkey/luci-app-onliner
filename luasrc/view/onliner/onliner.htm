@@ -25,27 +25,41 @@ local function compare_ipv4(ip1, ip2)
 end
 
 local function online_data()
-	local rv = {}
-	local fd = util.execi('/usr/bin/awk \'BEGIN{while ((getline < "/tmp/dhcp.leases") > 0){a[$2]=$4;}while ((getline < "/proc/net/arp") > 0){if (!a[$4]){a[$4]="?";}if (match($3,"0x[26]")){"ping -q -c 1 "$1" &";if (b[$4]){b[$4]=b[$4]"/"$1;}else{b[$4]=$1;}c[$4]=$6;}}while (("ip -6 neighbor show | grep -v fe80" | getline) > 0){if (b[$5]) {"ping -q -c 1 "$1" &";b[$5]=b[$5]"/"$1;}}for (mac in b){print(a[mac],b[mac],mac,c[mac]);}}\' ')
+    local rv = {}
+    local fd = util.execi(
+        '/usr/bin/awk \'BEGIN {' ..
+        'while ((getline < "/tmp/dhcp.leases") > 0) {' ..
+        'a[$2] = $4; }' ..
+        'while ((getline < "/proc/net/arp") > 0) {' ..
+        'if (!a[$4]) { a[$4] = "?"; }' ..
+        'if (match($3, "0x[26]")) { "ping -q -c 1 " $1 " &"; ' ..
+        'if (b[$4]) { b[$4] = b[$4] "/" $1; } else { b[$4] = $1; }' ..
+        'c[$4] = $6; } }' ..
+        'while (("ip -6 neighbor show | grep -v fe80" | getline) > 0) {' ..
+        'if (b[$5]) { "ping -q -c 1 " $1 " &"; b[$5] = b[$5] "/" $1; } }' ..
+        'for (mac in b) { print(a[mac], b[mac], mac, c[mac]); } }\''
+    )
 
-	while true do
-		local ln = fd()
-		if ln == nil then break end
-		local name, ip, mac, dev = ln:match("^(%S+) (%S+) (%S+) (%S+)")
-		if mac and ip and name and dev then
-			rv[#rv + 1] = {
-				hostname = name,
-				device   = dev,
-				macaddr  = mac,
-				ipaddr   = ip
-			}
-		end
-	end
+    while true do
+        local ln = fd()
+        if ln == nil then
+            break
+        end
+        local name, ip, mac, dev = ln:match("^(%S+) (%S+) (%S+) (%S+)")
+        if mac and ip and name and dev then
+            rv[#rv + 1] = {
+                hostname = name,
+                device = dev,
+                macaddr = mac,
+                ipaddr = ip
+            }
+        end
+    end
 
     table.sort(rv, function(a, b)
-    		return compare_ipv4(a.ipaddr, b.ipaddr)
+        return compare_ipv4(a.ipaddr, b.ipaddr)
     end)
-	
+
     return rv
 end
 
@@ -60,12 +74,15 @@ end
 -%>
 
 <%+header%>
+
 <style>
+
 	/* 表格标题样式 */
 	#online_status_table .table-titles td,
 	#online_status_table .table-titles th {
 	  border-top: 0;
 	  padding: 1.1em;
+	  
 	}
 	
 	/* 表格单元格样式 */
@@ -77,7 +94,7 @@ end
 	}
 </style>
 
-<script type="text/javascript" src="<%=resource%>/cbi.js"></script>
+
 <script type="text/javascript">//<![CDATA[
 	var npoll = 1;
 
@@ -106,7 +123,6 @@ end
 					tr.className = 'tr table-titles';
 
 					var td = tr.insertCell(-1);
-					td.colSpan = 4;
 					td.innerHTML = '<em><br /><%:No online devices%></em>';
 				}
 				if (countTitle) {
@@ -120,7 +136,7 @@ end
 
 <fieldset class="cbi-section">
 	<h3 id="online_device_count"><%:Online Devices%></h3>
-	<table class="cbi-section-table" id="online_status_table">
+	<table class="table" id="online_status_table">
 		<tr class="tr table-titles">
 			<th class="th"><%:IP Address%></th>
 			<th class="th"><%:MAC Address%></th>
@@ -128,7 +144,7 @@ end
 			<th class="th"><%:Interface%></th>
 		</tr>
 		<tr class="tr table-titles">
-			<td class="td" colspan="4"><em><br /><%:Collecting data...%></em></td>
+			<td class="td"><em><br /><%:Collecting data...%></em></td>
 		</tr>
 	</table>
 </fieldset>
